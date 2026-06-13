@@ -16,6 +16,7 @@ export default function ShopItem({ item, children }) {
   const groupRef = useRef()
   const { camera, gl } = useThree()
   const controls = useThree((s) => s.controls)
+  const controlsRef = useRef(controls)
   const [hovered, setHovered] = useState(false)
   const pointerCaptured = useRef(false)
   const dragging = useRef(false)
@@ -25,11 +26,39 @@ export default function ShopItem({ item, children }) {
 
   useCursor(hovered)
 
+  // Keep controlsRef fresh — used inside native event listeners where the R3F closure is stale
+  useEffect(() => { controlsRef.current = controls }, [controls])
+
   // Register this item's group ref in the global map so Viewport can attach TransformControls
   useEffect(() => {
     itemRefs.set(item.id, groupRef)
     return () => itemRefs.delete(item.id)
   }, [item.id])
+
+  // Native canvas pointerup listener — fires even when R3F raycasting misses the item
+  // (e.g. cursor drifted off mesh during drag). This is the primary cleanup path.
+  useEffect(() => {
+    const canvas = gl.domElement
+    function onNativeUp(e) {
+      if (pointerCaptured.current) cleanup(e.pointerId)
+    }
+    canvas.addEventListener('pointerup', onNativeUp)
+    return () => canvas.removeEventListener('pointerup', onNativeUp)
+  // gl.domElement is stable for the lifetime of the Canvas
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gl.domElement])
+
+  function cleanup(pointerId) {
+    const wasDragging = dragging.current
+    pointerCaptured.current = false
+    dragging.current = false
+    dragStartPx.current = null
+    if (controlsRef.current) controlsRef.current.enabled = true
+    if (wasDragging) setIsTransforming(false)
+    if (pointerId != null) {
+      try { gl.domElement.releasePointerCapture(pointerId) } catch (_) {}
+    }
+  }
 
   // Sync store position/rotation → three.js object imperatively.
   // Skipped while a transform is in progress (drag or rotate gizmo) to avoid fighting.
@@ -56,14 +85,14 @@ export default function ShopItem({ item, children }) {
 
   function onPointerDown(e) {
     if (editMode === 'measure') return
-    if (faceSelectId === item.id) return // let STLMesh handle the click
+    if (faceSelectId === item.id) return
     if (e.button !== 0) return
     e.stopPropagation()
     selectItem(item.id)
     if (transformMode !== 'translate') return
     pointerCaptured.current = true
     dragStartPx.current = { x: e.clientX, y: e.clientY }
-    if (controls) controls.enabled = false
+    if (controlsRef.current) controlsRef.current.enabled = false
     gl.domElement.setPointerCapture(e.pointerId)
     const pt = getGroundPoint(e.clientX, e.clientY)
     dragOffset.current.set(pt.x - item.position[0], 0, pt.z - item.position[2])
@@ -71,8 +100,8 @@ export default function ShopItem({ item, children }) {
 
   function onPointerMove(e) {
     if (!pointerCaptured.current) return
-    // Don't commit to drag until pointer moves beyond threshold — prevents
-    // accidental drags when the user clicks an item mid-orbit gesture
+    // Self-heal: mouse button released but pointerup was missed (e.g. cursor left canvas)
+    if (!(e.buttons & 1)) { cleanup(e.pointerId); return }
     if (!dragging.current) {
       const dx = e.clientX - dragStartPx.current.x
       const dz = e.clientY - dragStartPx.current.y
@@ -87,30 +116,10 @@ export default function ShopItem({ item, children }) {
     updateItem(item.id, { position: [x, 0, z] })
   }
 
-  function onPointerUp(e) {
-    if (!pointerCaptured.current) return
-    pointerCaptured.current = false
-    dragStartPx.current = null
-    if (controls) controls.enabled = true
-    if (dragging.current) {
-      dragging.current = false
-      setIsTransforming(false)
-    }
-    gl.domElement.releasePointerCapture(e.pointerId)
-  }
+  function onPointerUp(e) { cleanup(e.pointerId) }
 
-  // Browser fires pointercancel (not pointerup) when a file dialog or system UI opens
-  // mid-gesture — same cleanup but no releasePointerCapture (already released by browser)
-  function onPointerCancel() {
-    if (!pointerCaptured.current) return
-    pointerCaptured.current = false
-    dragStartPx.current = null
-    if (controls) controls.enabled = true
-    if (dragging.current) {
-      dragging.current = false
-      setIsTransforming(false)
-    }
-  }
+  // pointercancel: browser already released capture, so pass null to skip releasePointerCapture
+  function onPointerCancel() { cleanup(null) }
 
   return (
     <group ref={groupRef}>
