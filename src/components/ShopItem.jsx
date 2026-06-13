@@ -17,8 +17,11 @@ export default function ShopItem({ item, children }) {
   const { camera, gl } = useThree()
   const controls = useThree((s) => s.controls)
   const [hovered, setHovered] = useState(false)
+  const pointerCaptured = useRef(false)
   const dragging = useRef(false)
   const dragOffset = useRef(new THREE.Vector3())
+  const dragStartPx = useRef(null)
+  const DRAG_THRESHOLD = 5
 
   useCursor(hovered)
 
@@ -52,13 +55,13 @@ export default function ShopItem({ item, children }) {
   }
 
   function onPointerDown(e) {
-    if (editMode === 'measure') return // let event fall through to floor measure plane
+    if (editMode === 'measure') return
     if (e.button !== 0) return
     e.stopPropagation()
     selectItem(item.id)
     if (transformMode !== 'translate') return
-    dragging.current = true
-    setIsTransforming(true)
+    pointerCaptured.current = true
+    dragStartPx.current = { x: e.clientX, y: e.clientY }
     if (controls) controls.enabled = false
     gl.domElement.setPointerCapture(e.pointerId)
     const pt = getGroundPoint(e.clientX, e.clientY)
@@ -66,20 +69,33 @@ export default function ShopItem({ item, children }) {
   }
 
   function onPointerMove(e) {
-    if (!dragging.current) return
+    if (!pointerCaptured.current) return
+    // Don't commit to drag until pointer moves beyond threshold — prevents
+    // accidental drags when the user clicks an item mid-orbit gesture
+    if (!dragging.current) {
+      const dx = e.clientX - dragStartPx.current.x
+      const dz = e.clientY - dragStartPx.current.y
+      if (dx * dx + dz * dz < DRAG_THRESHOLD * DRAG_THRESHOLD) return
+      dragging.current = true
+      setIsTransforming(true)
+    }
     const pt = getGroundPoint(e.clientX, e.clientY)
     const x = snap(pt.x - dragOffset.current.x)
     const z = snap(pt.z - dragOffset.current.z)
-    // Move three.js object directly for smooth 60fps rendering
     if (groupRef.current) groupRef.current.position.set(x, item.h / 2, z)
     updateItem(item.id, { position: [x, 0, z] })
   }
 
   function onPointerUp(e) {
-    if (!dragging.current) return
-    dragging.current = false
-    setIsTransforming(false)
+    if (!pointerCaptured.current) return
+    pointerCaptured.current = false
+    dragStartPx.current = null
+    // Always re-enable controls — even if drag threshold was never exceeded
     if (controls) controls.enabled = true
+    if (dragging.current) {
+      dragging.current = false
+      setIsTransforming(false)
+    }
     gl.domElement.releasePointerCapture(e.pointerId)
   }
 

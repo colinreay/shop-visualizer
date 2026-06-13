@@ -20,6 +20,8 @@ function Section({ title, defaultOpen = true, children, action }) {
   )
 }
 
+const M_TO_FT = 3.28084
+
 export default function Sidebar() {
   const {
     items, selectedId, selectItem, removeItem, updateItem, addItem,
@@ -29,13 +31,25 @@ export default function Sidebar() {
     clearLayout,
     measurements, clearMeasurements,
     editMode, setEditMode,
+    units, setUnits,
   } = useStore()
 
   const selected = items.find((i) => i.id === selectedId)
 
+  // Convert meters → display unit (for showing values)
+  const toDisp = (m) => units === 'ft' ? +(m * M_TO_FT).toFixed(3) : +m.toFixed(3)
+  // Convert display unit → meters (for storing values)
+  const toM = (v) => units === 'ft' ? v / M_TO_FT : v
+  // Unit label string
+  const u = units === 'ft' ? 'ft' : 'm'
+  // Convert a points array to display units
+  const dispPts = (pts) => pts.map(([x, z]) => [toDisp(x), toDisp(z)])
+  // Convert a points array back to meters
+  const mPts = (pts) => pts.map(([x, z]) => [toM(x), toM(z)])
+
   function handlePosChange(axis, raw) {
     if (!selected) return
-    const val = raw === '' ? 0 : parseFloat(raw)
+    const val = toM(raw === '' ? 0 : parseFloat(raw))
     const pos = [...selected.position]
     pos[axis === 'x' ? 0 : 2] = val
     updateItem(selected.id, { position: pos })
@@ -43,7 +57,7 @@ export default function Sidebar() {
 
   function handleDimChange(dim, raw) {
     if (!selected) return
-    const val = Math.max(0.05, parseFloat(raw) || 0.05)
+    const val = Math.max(toM(0.05), toM(parseFloat(raw) || 0.05))
     updateItem(selected.id, { [dim]: val })
   }
 
@@ -52,9 +66,20 @@ export default function Sidebar() {
       {/* Header */}
       <div style={s.header}>
         <div style={s.logo}>⬡</div>
-        <div>
+        <div style={{ flex: 1 }}>
           <div style={s.appName}>Shop Visualizer</div>
           <div style={s.appSub}>Machine shop layout tool</div>
+        </div>
+        <div style={s.unitToggle}>
+          {['m', 'ft'].map((u) => (
+            <button
+              key={u}
+              style={{ ...s.unitBtn, ...(units === u ? s.unitBtnActive : {}) }}
+              onClick={() => setUnits(u)}
+            >
+              {u}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -98,13 +123,13 @@ export default function Sidebar() {
               <div style={s.dimRow}>
                 {[['w', 'W'], ['d', 'D'], ['h', 'H']].map(([key, label]) => (
                   <label key={key} style={{ flex: 1 }}>
-                    <div style={s.dimLabel}>{label} (m)</div>
+                    <div style={s.dimLabel}>{label} ({u})</div>
                     <input
                       type="number"
-                      step="0.1"
-                      min="0.05"
+                      step={units === 'ft' ? '0.1' : '0.1'}
+                      min="0.01"
                       style={s.inp}
-                      value={+selected[key].toFixed(2)}
+                      value={toDisp(selected[key])}
                       onChange={(e) => handleDimChange(key, e.target.value)}
                     />
                   </label>
@@ -113,22 +138,22 @@ export default function Sidebar() {
 
               <div style={s.twoCol}>
                 <label style={{ flex: 1 }}>
-                  <div style={s.dimLabel}>X (m)</div>
+                  <div style={s.dimLabel}>X ({u})</div>
                   <input
                     type="number"
-                    step="0.25"
+                    step={units === 'ft' ? '1' : '0.25'}
                     style={s.inp}
-                    value={+selected.position[0].toFixed(2)}
+                    value={toDisp(selected.position[0])}
                     onChange={(e) => handlePosChange('x', e.target.value)}
                   />
                 </label>
                 <label style={{ flex: 1 }}>
-                  <div style={s.dimLabel}>Z (m)</div>
+                  <div style={s.dimLabel}>Z ({u})</div>
                   <input
                     type="number"
-                    step="0.25"
+                    step={units === 'ft' ? '1' : '0.25'}
                     style={s.inp}
-                    value={+selected.position[2].toFixed(2)}
+                    value={toDisp(selected.position[2])}
                     onChange={(e) => handlePosChange('z', e.target.value)}
                   />
                 </label>
@@ -175,8 +200,8 @@ export default function Sidebar() {
             Define the outer walls of your shop. Points close automatically to form a polygon.
           </div>
           <PointsEditor
-            points={perimeter}
-            onChange={setPerimeter}
+            points={dispPts(perimeter)}
+            onChange={(pts) => setPerimeter(mPts(pts))}
           />
           {perimeter.length < 3 && (
             <div style={s.hintWarn}>Need at least 3 points to draw walls & floor.</div>
@@ -198,7 +223,7 @@ export default function Sidebar() {
                 <span style={s.wallCardTitle}>Wall {i + 1}</span>
                 <button style={s.iconBtn} onClick={() => removeWall(i)}>✕</button>
               </div>
-              <PointsEditor points={pts} onChange={(next) => setWall(i, next)} />
+              <PointsEditor points={dispPts(pts)} onChange={(next) => setWall(i, mPts(next))} />
             </div>
           ))}
         </Section>
@@ -218,7 +243,7 @@ export default function Sidebar() {
                 <span style={s.wallCardTitle}>Curtain {i + 1}</span>
                 <button style={s.iconBtn} onClick={() => removeCurtain(i)}>✕</button>
               </div>
-              <PointsEditor points={pts} onChange={(next) => setCurtain(i, next)} />
+              <PointsEditor points={dispPts(pts)} onChange={(next) => setCurtain(i, mPts(next))} />
             </div>
           ))}
         </Section>
@@ -245,9 +270,9 @@ export default function Sidebar() {
                   return (
                     <div key={m.id} style={s.measureRow}>
                       <span style={{ color: '#666', fontSize: 11 }}>
-                        ({m.p1[0].toFixed(1)}, {m.p1[1].toFixed(1)}) → ({m.p2[0].toFixed(1)}, {m.p2[1].toFixed(1)})
+                        ({toDisp(m.p1[0]).toFixed(1)}, {toDisp(m.p1[1]).toFixed(1)}) → ({toDisp(m.p2[0]).toFixed(1)}, {toDisp(m.p2[1]).toFixed(1)})
                       </span>
-                      <strong style={{ color: '#1a1a2e' }}>{dist.toFixed(2)} m</strong>
+                      <strong style={{ color: '#1a1a2e' }}>{toDisp(dist).toFixed(2)} {u}</strong>
                     </div>
                   )
                 })}
@@ -275,7 +300,7 @@ export default function Sidebar() {
                 <span style={{ ...s.colorDot, background: item.color }} />
                 <span style={{ flex: 1, fontSize: 12, color: '#1a1a2e' }}>{item.label}</span>
                 <span style={{ fontSize: 10, color: '#999' }}>
-                  {item.w}×{item.d}×{item.h}m
+                  {toDisp(item.w)}×{toDisp(item.d)}×{toDisp(item.h)}{u}
                 </span>
               </div>
             ))}
@@ -305,6 +330,26 @@ const s = {
     gap: 10,
     background: '#fff',
     flexShrink: 0,
+  },
+  unitToggle: {
+    display: 'flex',
+    border: '1px solid #d1d5db',
+    borderRadius: 6,
+    overflow: 'hidden',
+    flexShrink: 0,
+  },
+  unitBtn: {
+    padding: '4px 9px',
+    fontSize: 11,
+    fontWeight: 600,
+    border: 'none',
+    background: 'transparent',
+    color: '#6b7280',
+    cursor: 'pointer',
+  },
+  unitBtnActive: {
+    background: '#2563eb',
+    color: '#fff',
   },
   logo: {
     fontSize: 22,

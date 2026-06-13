@@ -3,7 +3,7 @@ import {
   OrbitControls, Grid, Environment, GizmoHelper,
   GizmoViewport, Html, TransformControls,
 } from '@react-three/drei'
-import { Suspense, useEffect } from 'react'
+import { Suspense, useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { useStore } from '../store'
 import { itemRefs } from '../itemRefs'
@@ -11,6 +11,27 @@ import ShopItem from './ShopItem'
 import ShopWalls, { MeasureDisplay, MeasurePainter } from './ShopWalls'
 // WallPainter removed — walls are now defined via coordinate editor in the sidebar
 import { STLMesh } from './STLImport'
+
+const HOME_POS = [12, 10, 12]
+
+// Watches cameraResetTick and snaps camera back to the default isometric position
+function CameraResetter() {
+  const { cameraResetTick } = useStore()
+  const { camera, controls } = useThree()
+  const prevTick = useRef(0)
+
+  useEffect(() => {
+    if (cameraResetTick === prevTick.current) return
+    prevTick.current = cameraResetTick
+    camera.position.set(...HOME_POS)
+    if (controls) {
+      controls.target.set(0, 0, 0)
+      controls.update()
+    }
+  }, [cameraResetTick, camera, controls])
+
+  return null
+}
 
 function Floor() {
   return (
@@ -102,13 +123,13 @@ function SceneContents() {
       <Grid
         args={[200, 200]}
         cellSize={1}
-        cellThickness={0.4}
+        cellThickness={0.6}
         cellColor="#9aa5b4"
         sectionSize={5}
-        sectionThickness={0.8}
+        sectionThickness={1.2}
         sectionColor="#6b7280"
-        fadeDistance={80}
-        fadeStrength={1.5}
+        fadeDistance={50}
+        fadeStrength={3}
         followCamera={false}
         infiniteGrid
       />
@@ -129,6 +150,8 @@ function SceneContents() {
 
       {transformMode === 'rotate' && <RotateGizmo />}
 
+      <CameraResetter />
+
       <OrbitControls
         makeDefault
         minPolarAngle={0}
@@ -146,7 +169,7 @@ function SceneContents() {
 }
 
 function Toolbar() {
-  const { transformMode, setTransformMode, snapEnabled, setSnapEnabled, selectedId, editMode, setEditMode } = useStore()
+  const { transformMode, setTransformMode, snapEnabled, setSnapEnabled, selectedId, editMode, setEditMode, triggerCameraReset } = useStore()
 
   useEffect(() => {
     function onKey(e) {
@@ -155,10 +178,13 @@ function Toolbar() {
       if (e.key === 'r' || e.key === 'R') { setTransformMode('rotate'); setEditMode('select') }
       if (e.key === 'm' || e.key === 'M') setEditMode(editMode === 'measure' ? 'select' : 'measure')
       if (e.key === 'Escape') { setTransformMode('translate'); setEditMode('select') }
+      if (e.key === 'Home') triggerCameraReset()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [editMode, setTransformMode, setEditMode])
+  // triggerCameraReset/setTransformMode/setEditMode are stable Zustand refs, not reactive
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editMode])
 
   const isMeasure = editMode === 'measure'
 
@@ -194,6 +220,14 @@ function Toolbar() {
       >
         ⊞ Snap
       </button>
+      <div style={ts.divider} />
+      <button
+        style={ts.btn}
+        onClick={triggerCameraReset}
+        title="Reset view (Home)"
+      >
+        ⌂ Home
+      </button>
       {isMeasure && (
         <span style={ts.hint}>Click two points on the floor</span>
       )}
@@ -213,6 +247,7 @@ export default function Viewport() {
       <Toolbar />
       <Canvas
         shadows
+        dpr={[1, 2]}
         camera={{ position: [12, 10, 12], fov: 50, near: 0.1, far: 500 }}
         style={{ width: '100%', height: '100%' }}
         onPointerMissed={() => selectItem(null)}

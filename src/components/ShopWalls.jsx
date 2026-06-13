@@ -103,15 +103,19 @@ function PerimeterFloor({ points }) {
   )
 }
 
+const M_TO_FT = 3.28084
+
 // Measurement lines + labels
 export function MeasureDisplay() {
-  const { measurements } = useStore()
+  const { measurements, units } = useStore()
   return (
     <>
       {measurements.map((m) => {
         const [x1, z1] = m.p1
         const [x2, z2] = m.p2
-        const dist = Math.sqrt((x2 - x1) ** 2 + (z2 - z1) ** 2)
+        const distM = Math.sqrt((x2 - x1) ** 2 + (z2 - z1) ** 2)
+        const dist = units === 'ft' ? distM * M_TO_FT : distM
+        const label = `${dist.toFixed(2)} ${units}`
         const mx = (x1 + x2) / 2
         const mz = (z1 + z2) / 2
         const positions = new Float32Array([x1, 0.08, z1, x2, 0.08, z2])
@@ -124,7 +128,6 @@ export function MeasureDisplay() {
               </bufferGeometry>
               <lineBasicMaterial color="#e53935" linewidth={2} />
             </line>
-            {/* Endpoint dots */}
             {[[x1, z1], [x2, z2]].map(([x, z], i) => (
               <mesh key={i} position={[x, 0.1, z]}>
                 <sphereGeometry args={[0.07, 8, 8]} />
@@ -144,7 +147,7 @@ export function MeasureDisplay() {
                 boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
                 pointerEvents: 'none',
               }}>
-                {dist.toFixed(2)} m
+                {label}
               </div>
             </Html>
           </group>

@@ -43,6 +43,14 @@ export const useStore = create((set, get) => ({
   editMode: 'select', // 'select' | 'measure'
   setEditMode: (mode) => set({ editMode: mode }),
 
+  // Display units — internal values always stored in meters
+  units: 'm', // 'm' | 'ft'
+  setUnits: (u) => set({ units: u }),
+
+  // Camera reset — increment to trigger a reset inside the Canvas
+  cameraResetTick: 0,
+  triggerCameraReset: () => set((s) => ({ cameraResetTick: s.cameraResetTick + 1, selectedId: null })),
+
   addItem: (overrides) => {
     itemCount += 1
     const id = uid()
