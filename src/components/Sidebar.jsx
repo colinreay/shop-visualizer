@@ -20,7 +20,10 @@ function Section({ title, defaultOpen = true, children, action }) {
   )
 }
 
-const M_TO_FT = 3.28084
+const UNIT_FACTORS = { m: 1, ft: 3.28084, mm: 1000, in: 39.3701 }
+const UNIT_DECIMALS = { m: 3, ft: 3, mm: 1, in: 2 }
+const DIM_STEP     = { m: '0.1', ft: '0.1', mm: '10', in: '0.25' }
+const POS_STEP     = { m: '0.25', ft: '0.5', mm: '25', in: '0.5' }
 
 export default function Sidebar() {
   const {
@@ -32,6 +35,7 @@ export default function Sidebar() {
     measurements, clearMeasurements,
     editMode, setEditMode,
     units, setUnits,
+    wallHeight, setWallHeight,
     faceSelectId, setFaceSelectId,
   } = useStore()
 
@@ -53,16 +57,13 @@ export default function Sidebar() {
     return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
   }, [])
 
-  // Convert meters → display unit (for showing values)
-  const toDisp = (m) => units === 'ft' ? +(m * M_TO_FT).toFixed(3) : +m.toFixed(3)
-  // Convert display unit → meters (for storing values)
-  const toM = (v) => units === 'ft' ? v / M_TO_FT : v
-  // Unit label string
-  const u = units === 'ft' ? 'ft' : 'm'
-  // Convert a points array to display units
+  const factor  = UNIT_FACTORS[units] ?? 1
+  const dec     = UNIT_DECIMALS[units] ?? 3
+  const toDisp  = (m) => +(m * factor).toFixed(dec)
+  const toM     = (v) => v / factor
+  const u       = units
   const dispPts = (pts) => pts.map(([x, z]) => [toDisp(x), toDisp(z)])
-  // Convert a points array back to meters
-  const mPts = (pts) => pts.map(([x, z]) => [toM(x), toM(z)])
+  const mPts    = (pts) => pts.map(([x, z]) => [toM(x), toM(z)])
 
   function handlePosChange(axis, raw) {
     if (!selected) return
@@ -97,13 +98,13 @@ export default function Sidebar() {
           <div style={s.appSub}>Machine shop layout tool</div>
         </div>
         <div style={s.unitToggle}>
-          {['m', 'ft'].map((u) => (
+          {['m', 'ft', 'mm', 'in'].map((unit) => (
             <button
-              key={u}
-              style={{ ...s.unitBtn, ...(units === u ? s.unitBtnActive : {}) }}
-              onClick={() => setUnits(u)}
+              key={unit}
+              style={{ ...s.unitBtn, ...(units === unit ? s.unitBtnActive : {}) }}
+              onClick={() => setUnits(unit)}
             >
-              {u}
+              {unit}
             </button>
           ))}
         </div>
@@ -153,8 +154,8 @@ export default function Sidebar() {
                       <div style={s.dimLabel}>{label} ({u})</div>
                       <input
                         type="number"
-                        step="0.1"
-                        min="0.01"
+                        step={DIM_STEP[units]}
+                        min={toDisp(0.001)}
                         style={s.inp}
                         value={toDisp(selected[key])}
                         onChange={(e) => handleDimChange(key, e.target.value)}
@@ -169,7 +170,7 @@ export default function Sidebar() {
                   <div style={s.dimLabel}>X ({u})</div>
                   <input
                     type="number"
-                    step={units === 'ft' ? '1' : '0.25'}
+                    step={POS_STEP[units]}
                     style={s.inp}
                     value={toDisp(selected.position[0])}
                     onChange={(e) => handlePosChange('x', e.target.value)}
@@ -179,7 +180,7 @@ export default function Sidebar() {
                   <div style={s.dimLabel}>Z ({u})</div>
                   <input
                     type="number"
-                    step={units === 'ft' ? '1' : '0.25'}
+                    step={POS_STEP[units]}
                     style={s.inp}
                     value={toDisp(selected.position[2])}
                     onChange={(e) => handlePosChange('z', e.target.value)}
@@ -267,6 +268,20 @@ export default function Sidebar() {
         >
           <div style={s.hint}>
             Define the outer walls of your shop. Points close automatically to form a polygon.
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, marginTop: 6 }}>
+            <span style={{ fontSize: 11, color: '#6b7280', flexShrink: 0 }}>Wall height ({u})</span>
+            <input
+              type="number"
+              step={DIM_STEP[units]}
+              min={toDisp(0.5)}
+              style={{ ...s.inp, width: 80 }}
+              value={toDisp(wallHeight)}
+              onChange={(e) => {
+                const v = toM(parseFloat(e.target.value) || 3.5)
+                setWallHeight(Math.max(0.5, v))
+              }}
+            />
           </div>
           <PointsEditor
             points={dispPts(perimeter)}

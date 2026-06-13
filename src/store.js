@@ -44,8 +44,12 @@ export const useStore = create((set, get) => ({
   setEditMode: (mode) => set({ editMode: mode }),
 
   // Display units — internal values always stored in meters
-  units: 'm', // 'm' | 'ft'
+  units: 'm', // 'm' | 'ft' | 'mm' | 'in'
   setUnits: (u) => set({ units: u }),
+
+  // Wall height in meters — applies to all perimeter + interior walls
+  wallHeight: 3.5,
+  setWallHeight: (h) => set({ wallHeight: h }),
 
   // Camera reset — increment to trigger a reset inside the Canvas
   cameraResetTick: 0,

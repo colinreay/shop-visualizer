@@ -23,14 +23,13 @@ function ScaledSphere({ position, color, opacity = 1 }) {
   )
 }
 
-const WALL_HEIGHT = 3.5
 const WALL_THICKNESS = 0.15
 
 // One wall segment between two XZ points.
 // Three.js Ry(θ) maps local X → (cosθ, 0, −sinθ) in world space.
 // To align the box's length-axis (local X) with wall direction (dx, 0, dz):
 //   cosθ = dx/L,  −sinθ = dz/L  →  θ = atan2(−dz, dx)
-function WallSegment({ p1, p2, isCurtain, isPerimeter }) {
+function WallSegment({ p1, p2, isCurtain, isPerimeter, wallHeight }) {
   const dx = p2[0] - p1[0]
   const dz = p2[1] - p1[1]
   const length = Math.sqrt(dx * dx + dz * dz)
@@ -41,8 +40,8 @@ function WallSegment({ p1, p2, isCurtain, isPerimeter }) {
 
   if (isCurtain) {
     return (
-      <mesh position={[cx, WALL_HEIGHT / 2, cz]} rotation={[0, angle, 0]}>
-        <planeGeometry args={[length, WALL_HEIGHT]} />
+      <mesh position={[cx, wallHeight / 2, cz]} rotation={[0, angle, 0]}>
+        <planeGeometry args={[length, wallHeight]} />
         <meshStandardMaterial
           color="#60a5fa"
           transparent
@@ -55,8 +54,8 @@ function WallSegment({ p1, p2, isCurtain, isPerimeter }) {
   }
 
   return (
-    <mesh position={[cx, WALL_HEIGHT / 2, cz]} rotation={[0, angle, 0]} castShadow receiveShadow>
-      <boxGeometry args={[length, WALL_HEIGHT, WALL_THICKNESS]} />
+    <mesh position={[cx, wallHeight / 2, cz]} rotation={[0, angle, 0]} castShadow receiveShadow>
+      <boxGeometry args={[length, wallHeight, WALL_THICKNESS]} />
       <meshStandardMaterial
         color={isPerimeter ? '#8899bb' : '#aab5c8'}
         roughness={0.7}
@@ -66,11 +65,10 @@ function WallSegment({ p1, p2, isCurtain, isPerimeter }) {
   )
 }
 
-// Square column cap at each node — fills corner gaps where two segments meet
-function WallPost({ x, z, isPerimeter }) {
+function WallPost({ x, z, isPerimeter, wallHeight }) {
   return (
-    <mesh position={[x, WALL_HEIGHT / 2, z]} castShadow>
-      <boxGeometry args={[WALL_THICKNESS, WALL_HEIGHT, WALL_THICKNESS]} />
+    <mesh position={[x, wallHeight / 2, z]} castShadow>
+      <boxGeometry args={[WALL_THICKNESS, wallHeight, WALL_THICKNESS]} />
       <meshStandardMaterial
         color={isPerimeter ? '#7788aa' : '#99aabb'}
         roughness={0.7}
@@ -81,7 +79,7 @@ function WallPost({ x, z, isPerimeter }) {
 }
 
 // A continuous wall path through multiple nodes — renders segments + corner posts
-function WallPath({ points, isCurtain, isPerimeter, closed }) {
+function WallPath({ points, isCurtain, isPerimeter, closed, wallHeight }) {
   if (!points || points.length < 2) return null
 
   const allPoints = closed && points.length > 2
@@ -90,13 +88,11 @@ function WallPath({ points, isCurtain, isPerimeter, closed }) {
 
   return (
     <>
-      {/* Segments between consecutive nodes */}
       {allPoints.slice(0, -1).map((p, i) => (
-        <WallSegment key={i} p1={p} p2={allPoints[i + 1]} isCurtain={isCurtain} isPerimeter={isPerimeter} />
+        <WallSegment key={i} p1={p} p2={allPoints[i + 1]} isCurtain={isCurtain} isPerimeter={isPerimeter} wallHeight={wallHeight} />
       ))}
-      {/* Corner post at every node (seals gaps, fills mitre) — skip for curtains */}
       {!isCurtain && points.map(([x, z], i) => (
-        <WallPost key={i} x={x} z={z} isPerimeter={isPerimeter} />
+        <WallPost key={i} x={x} z={z} isPerimeter={isPerimeter} wallHeight={wallHeight} />
       ))}
     </>
   )
@@ -123,7 +119,7 @@ function PerimeterFloor({ points }) {
   )
 }
 
-const M_TO_FT = 3.28084
+const UNIT_FACTORS = { m: 1, ft: 3.28084, mm: 1000, in: 39.3701 }
 
 // Measurement lines + labels
 export function MeasureDisplay() {
@@ -134,8 +130,8 @@ export function MeasureDisplay() {
         const [x1, z1] = m.p1
         const [x2, z2] = m.p2
         const distM = Math.sqrt((x2 - x1) ** 2 + (z2 - z1) ** 2)
-        const dist = units === 'ft' ? distM * M_TO_FT : distM
-        const label = `${dist.toFixed(2)} ${units}`
+        const dist = distM * (UNIT_FACTORS[units] ?? 1)
+        const label = `${dist.toFixed(units === 'mm' ? 0 : 2)} ${units}`
         const mx = (x1 + x2) / 2
         const mz = (z1 + z2) / 2
         const positions = new Float32Array([x1, 0.08, z1, x2, 0.08, z2])
@@ -325,21 +321,21 @@ export function MeasurePainter() {
 }
 
 export default function ShopWalls() {
-  const { perimeter, walls, curtains } = useStore()
+  const { perimeter, walls, curtains, wallHeight } = useStore()
 
   return (
     <>
       {perimeter.length >= 3 && (
         <>
           <PerimeterFloor points={perimeter} />
-          <WallPath points={perimeter} isPerimeter closed />
+          <WallPath points={perimeter} isPerimeter closed wallHeight={wallHeight} />
         </>
       )}
       {walls.map((pts, i) => (
-        <WallPath key={i} points={pts} />
+        <WallPath key={i} points={pts} wallHeight={wallHeight} />
       ))}
       {curtains.map((pts, i) => (
-        <WallPath key={i} points={pts} isCurtain />
+        <WallPath key={i} points={pts} isCurtain wallHeight={wallHeight} />
       ))}
     </>
   )
