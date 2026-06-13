@@ -11,7 +11,7 @@ const _hit = new THREE.Vector3()
 const _ndc = new THREE.Vector2()
 
 export default function ShopItem({ item, children }) {
-  const { selectedId, selectItem, updateItem, transformMode, isTransforming, setIsTransforming, snapEnabled, editMode } = useStore()
+  const { selectedId, selectItem, updateItem, transformMode, isTransforming, setIsTransforming, snapEnabled, editMode, faceSelectId } = useStore()
   const isSelected = item.id === selectedId
   const groupRef = useRef()
   const { camera, gl } = useThree()
@@ -56,6 +56,7 @@ export default function ShopItem({ item, children }) {
 
   function onPointerDown(e) {
     if (editMode === 'measure') return
+    if (faceSelectId === item.id) return // let STLMesh handle the click
     if (e.button !== 0) return
     e.stopPropagation()
     selectItem(item.id)
@@ -109,7 +110,7 @@ export default function ShopItem({ item, children }) {
           onPointerUp={onPointerUp}
           onPointerOver={(e) => { if (editMode === 'measure') return; e.stopPropagation(); setHovered(true) }}
           onPointerOut={() => setHovered(false)}
-          onClick={(e) => { if (editMode === 'measure') return; e.stopPropagation(); selectItem(item.id) }}
+          onClick={(e) => { if (editMode === 'measure' || faceSelectId === item.id) return; e.stopPropagation(); selectItem(item.id) }}
         >
           {children}
         </group>

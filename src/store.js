@@ -51,6 +51,10 @@ export const useStore = create((set, get) => ({
   cameraResetTick: 0,
   triggerCameraReset: () => set((s) => ({ cameraResetTick: s.cameraResetTick + 1, selectedId: null })),
 
+  // Face-select mode — id of the STL item currently awaiting a face click
+  faceSelectId: null,
+  setFaceSelectId: (id) => set({ faceSelectId: id }),
+
   addItem: (overrides) => {
     itemCount += 1
     const id = uid()

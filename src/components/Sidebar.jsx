@@ -32,6 +32,7 @@ export default function Sidebar() {
     measurements, clearMeasurements,
     editMode, setEditMode,
     units, setUnits,
+    faceSelectId, setFaceSelectId,
   } = useStore()
 
   const selected = items.find((i) => i.id === selectedId)
@@ -181,6 +182,47 @@ export default function Sidebar() {
                 </div>
               </label>
             </div>
+
+            {selected.type === 'stl' && (
+              <>
+                <div style={s.dimRow}>
+                  <label style={{ flex: 1 }}>
+                    <div style={s.dimLabel}>Scale ×</div>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0.01"
+                      style={s.inp}
+                      value={+(selected.userScale ?? 1).toFixed(3)}
+                      onChange={(e) => {
+                        const v = Math.max(0.001, parseFloat(e.target.value) || 1)
+                        updateItem(selected.id, { userScale: v })
+                      }}
+                    />
+                  </label>
+                  <label style={{ flex: 1 }}>
+                    <div style={s.dimLabel}>Size ({u})</div>
+                    <input
+                      style={{ ...s.inp, color: '#9ca3af' }}
+                      readOnly
+                      value={`${toDisp(selected.w * (selected.userScale ?? 1)).toFixed(2)} × ${toDisp(selected.d * (selected.userScale ?? 1)).toFixed(2)} × ${toDisp(selected.h * (selected.userScale ?? 1)).toFixed(2)}`}
+                    />
+                  </label>
+                </div>
+                <button
+                  style={{
+                    ...s.addItemBtn,
+                    marginTop: 4,
+                    background: faceSelectId === selected.id ? '#ea580c' : undefined,
+                    color: faceSelectId === selected.id ? '#fff' : undefined,
+                    borderColor: faceSelectId === selected.id ? '#ea580c' : undefined,
+                  }}
+                  onClick={() => setFaceSelectId(faceSelectId === selected.id ? null : selected.id)}
+                >
+                  {faceSelectId === selected.id ? '◉ Click a face to set ground…' : '▣ Set Face Down'}
+                </button>
+              </>
+            )}
 
             <button style={s.deleteBtn} onClick={() => removeItem(selected.id)}>
               Delete Item
