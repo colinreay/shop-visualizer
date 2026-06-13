@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useStore } from '../store'
 import { STLDropZone } from './STLImport'
 import PointsEditor from './PointsEditor'
@@ -37,6 +37,22 @@ export default function Sidebar() {
 
   const selected = items.find((i) => i.id === selectedId)
 
+  // Resizable sidebar
+  const [sidebarWidth, setSidebarWidth] = useState(260)
+  const resizing = useRef(false)
+  const resizeStart = useRef({ x: 0, w: 260 })
+  useEffect(() => {
+    function onMove(e) {
+      if (!resizing.current) return
+      const w = Math.max(180, Math.min(520, resizeStart.current.w + e.clientX - resizeStart.current.x))
+      setSidebarWidth(w)
+    }
+    function onUp() { resizing.current = false }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
+  }, [])
+
   // Convert meters → display unit (for showing values)
   const toDisp = (m) => units === 'ft' ? +(m * M_TO_FT).toFixed(3) : +m.toFixed(3)
   // Convert display unit → meters (for storing values)
@@ -63,7 +79,16 @@ export default function Sidebar() {
   }
 
   return (
-    <div style={s.sidebar}>
+    <div style={{ ...s.sidebar, width: sidebarWidth }}>
+      {/* Drag handle on right edge */}
+      <div
+        style={s.resizeHandle}
+        onMouseDown={(e) => {
+          resizing.current = true
+          resizeStart.current = { x: e.clientX, w: sidebarWidth }
+          e.preventDefault()
+        }}
+      />
       {/* Header */}
       <div style={s.header}>
         <div style={s.logo}>⬡</div>
@@ -121,21 +146,23 @@ export default function Sidebar() {
                 </div>
               </label>
 
-              <div style={s.dimRow}>
-                {[['w', 'W'], ['d', 'D'], ['h', 'H']].map(([key, label]) => (
-                  <label key={key} style={{ flex: 1 }}>
-                    <div style={s.dimLabel}>{label} ({u})</div>
-                    <input
-                      type="number"
-                      step={units === 'ft' ? '0.1' : '0.1'}
-                      min="0.01"
-                      style={s.inp}
-                      value={toDisp(selected[key])}
-                      onChange={(e) => handleDimChange(key, e.target.value)}
-                    />
-                  </label>
-                ))}
-              </div>
+              {selected.type !== 'stl' && (
+                <div style={s.dimRow}>
+                  {[['w', 'W'], ['d', 'D'], ['h', 'H']].map(([key, label]) => (
+                    <label key={key} style={{ flex: 1 }}>
+                      <div style={s.dimLabel}>{label} ({u})</div>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0.01"
+                        style={s.inp}
+                        value={toDisp(selected[key])}
+                        onChange={(e) => handleDimChange(key, e.target.value)}
+                      />
+                    </label>
+                  ))}
+                </div>
+              )}
 
               <div style={s.twoCol}>
                 <label style={{ flex: 1 }}>
@@ -356,13 +383,24 @@ export default function Sidebar() {
 
 const s = {
   sidebar: {
-    width: 260,
     background: '#f8f9fb',
     borderRight: '1px solid #e2e8f0',
     display: 'flex',
     flexDirection: 'column',
     flexShrink: 0,
     fontFamily: 'system-ui, sans-serif',
+    position: 'relative',
+  },
+  resizeHandle: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 5,
+    height: '100%',
+    cursor: 'col-resize',
+    zIndex: 10,
+    background: 'transparent',
+    transition: 'background 0.15s',
   },
   header: {
     padding: '14px 16px',

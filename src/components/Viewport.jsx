@@ -94,6 +94,21 @@ function RotateGizmo() {
   )
 }
 
+// Re-enables OrbitControls if a pointercancel (e.g. file dialog opening) escapes ShopItem
+function ControlsSafetyNet() {
+  const { controls } = useThree()
+  useEffect(() => {
+    function onCancel() { if (controls) controls.enabled = true }
+    window.addEventListener('pointercancel', onCancel)
+    window.addEventListener('blur', onCancel)
+    return () => {
+      window.removeEventListener('pointercancel', onCancel)
+      window.removeEventListener('blur', onCancel)
+    }
+  }, [controls])
+  return null
+}
+
 function SceneContents() {
   const { items, selectedId, selectItem, transformMode, editMode } = useStore()
 
@@ -151,6 +166,7 @@ function SceneContents() {
       {transformMode === 'rotate' && <RotateGizmo />}
 
       <CameraResetter />
+      <ControlsSafetyNet />
 
       <OrbitControls
         makeDefault

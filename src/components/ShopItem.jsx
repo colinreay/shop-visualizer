@@ -91,13 +91,25 @@ export default function ShopItem({ item, children }) {
     if (!pointerCaptured.current) return
     pointerCaptured.current = false
     dragStartPx.current = null
-    // Always re-enable controls — even if drag threshold was never exceeded
     if (controls) controls.enabled = true
     if (dragging.current) {
       dragging.current = false
       setIsTransforming(false)
     }
     gl.domElement.releasePointerCapture(e.pointerId)
+  }
+
+  // Browser fires pointercancel (not pointerup) when a file dialog or system UI opens
+  // mid-gesture — same cleanup but no releasePointerCapture (already released by browser)
+  function onPointerCancel() {
+    if (!pointerCaptured.current) return
+    pointerCaptured.current = false
+    dragStartPx.current = null
+    if (controls) controls.enabled = true
+    if (dragging.current) {
+      dragging.current = false
+      setIsTransforming(false)
+    }
   }
 
   return (
@@ -108,6 +120,7 @@ export default function ShopItem({ item, children }) {
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
+          onPointerCancel={onPointerCancel}
           onPointerOver={(e) => { if (editMode === 'measure') return; e.stopPropagation(); setHovered(true) }}
           onPointerOut={() => setHovered(false)}
           onClick={(e) => { if (editMode === 'measure' || faceSelectId === item.id) return; e.stopPropagation(); selectItem(item.id) }}
@@ -121,6 +134,7 @@ export default function ShopItem({ item, children }) {
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
+          onPointerCancel={onPointerCancel}
           onPointerOver={(e) => { if (editMode === 'measure') return; e.stopPropagation(); setHovered(true) }}
           onPointerOut={() => setHovered(false)}
           onClick={(e) => { if (editMode === 'measure') return; e.stopPropagation(); selectItem(item.id) }}
@@ -136,12 +150,18 @@ export default function ShopItem({ item, children }) {
         </mesh>
       )}
 
-      {isSelected && (
-        <lineSegments>
-          <edgesGeometry args={[new THREE.BoxGeometry(item.w + 0.03, item.h + 0.03, item.d + 0.03)]} />
-          <lineBasicMaterial color="#2563eb" />
-        </lineSegments>
-      )}
+      {isSelected && (() => {
+        const sc = item.type === 'stl' ? (item.userScale ?? 1) : 1
+        const bw = item.w * sc, bh = item.h * sc, bd = item.d * sc
+        // STL geometry base sits at Y=0 in group space — offset box up by half height
+        const by = item.type === 'stl' ? bh / 2 : 0
+        return (
+          <lineSegments position={[0, by, 0]}>
+            <edgesGeometry args={[new THREE.BoxGeometry(bw + 0.03, bh + 0.03, bd + 0.03)]} />
+            <lineBasicMaterial color="#2563eb" />
+          </lineSegments>
+        )
+      })()}
     </group>
   )
 }
