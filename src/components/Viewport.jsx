@@ -35,9 +35,9 @@ function CameraResetter() {
 
 function Floor() {
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.001, 0]} receiveShadow>
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]} receiveShadow>
       <planeGeometry args={[200, 200]} />
-      <meshStandardMaterial color="#b8bec8" roughness={0.95} />
+      <meshStandardMaterial color="#b8bec8" roughness={0.95} polygonOffset polygonOffsetFactor={4} polygonOffsetUnits={4} />
     </mesh>
   )
 }
@@ -143,8 +143,8 @@ function SceneContents() {
         sectionSize={5}
         sectionThickness={1.2}
         sectionColor="#6b7280"
-        fadeDistance={50}
-        fadeStrength={3}
+        fadeDistance={200}
+        fadeStrength={1.5}
         followCamera={false}
         infiniteGrid
       />
