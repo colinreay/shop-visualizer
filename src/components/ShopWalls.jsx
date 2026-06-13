@@ -1,7 +1,27 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useRef } from 'react'
+import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { Html } from '@react-three/drei'
 import { useStore } from '../store'
+
+const _tmp = new THREE.Vector3()
+
+// Sphere that auto-scales to stay a constant apparent size as camera moves
+function ScaledSphere({ position, color, opacity = 1 }) {
+  const meshRef = useRef()
+  const { camera } = useThree()
+  useFrame(() => {
+    if (!meshRef.current) return
+    const d = camera.position.distanceTo(_tmp.set(position[0], position[1], position[2]))
+    meshRef.current.scale.setScalar(Math.max(0.02, d * 0.005))
+  })
+  return (
+    <mesh ref={meshRef} position={position}>
+      <sphereGeometry args={[1, 10, 10]} />
+      <meshBasicMaterial color={color} transparent opacity={opacity} />
+    </mesh>
+  )
+}
 
 const WALL_HEIGHT = 3.5
 const WALL_THICKNESS = 0.15
@@ -129,10 +149,7 @@ export function MeasureDisplay() {
               <lineBasicMaterial color="#e53935" linewidth={2} />
             </line>
             {[[x1, z1], [x2, z2]].map(([x, z], i) => (
-              <mesh key={i} position={[x, 0.1, z]}>
-                <sphereGeometry args={[0.07, 8, 8]} />
-                <meshBasicMaterial color="#e53935" />
-              </mesh>
+              <ScaledSphere key={i} position={[x, 0.08, z]} color="#e53935" />
             ))}
             <Html position={[mx, 0.3, mz]} center>
               <div style={{
@@ -160,7 +177,7 @@ export function MeasureDisplay() {
 const SNAP_THRESHOLD = 0.5
 
 // Returns the nearest point on any item's XZ bounding box face within threshold,
-// or null if nothing is close enough.
+// or null if nothing is close enough. Accounts for STL userScale.
 function snapToItemFace(cx, cz, items) {
   let best = null
   let bestDist = SNAP_THRESHOLD
@@ -172,7 +189,8 @@ function snapToItemFace(cx, cz, items) {
     // Cursor in item-local XZ space
     const lx = cosN * (cx - ix) - sinN * (cz - iz)
     const lz = sinN * (cx - ix) + cosN * (cz - iz)
-    const hw = item.w / 2, hd = item.d / 2
+    const sc = item.type === 'stl' ? (item.userScale ?? 1) : 1
+    const hw = (item.w * sc) / 2, hd = (item.d * sc) / 2
 
     let nx, nz
     if (Math.abs(lx) <= hw && Math.abs(lz) <= hd) {
@@ -202,27 +220,53 @@ function snapToItemFace(cx, cz, items) {
   return best
 }
 
+const CLICK_MAX_MS = 250
+const CLICK_MAX_PX2 = 64 // 8px radius
+
 // Click handler for the measure tool — invisible floor hit plane
 export function MeasurePainter() {
-  const { editMode, addMeasurement, items } = useStore()
+  const { editMode, addMeasurement, items, snapEnabled } = useStore()
   const phase = useMemo(() => ({ current: 0, p1: null }), [])
-  const [snapIndicator, setSnapIndicator] = useState(null)
+  const [previewPoint, setPreviewPoint] = useState(null)
+  const [isSnapped, setIsSnapped] = useState(false)
   const [firstPoint, setFirstPoint] = useState(null)
+  const downTime = useRef(null)
+  const downPos = useRef(null)
+  const lastResolved = useRef(null)
 
   if (editMode !== 'measure') return null
 
   function resolve(x, z) {
-    return snapToItemFace(x, z, items) ?? [+x.toFixed(2), +z.toFixed(2)]
+    const snapped = snapEnabled ? snapToItemFace(x, z, items) : null
+    return { pt: snapped ?? [+x.toFixed(2), +z.toFixed(2)], snapped: !!snapped }
   }
 
   function onPointerMove(e) {
+    e.stopPropagation()
     const { x, z } = e.point
-    setSnapIndicator(snapToItemFace(x, z, items))
+    const { pt, snapped } = resolve(x, z)
+    lastResolved.current = pt
+    setPreviewPoint(pt)
+    setIsSnapped(snapped)
   }
 
-  function onClick(e) {
+  function onPointerDown(e) {
+    if (e.button !== 0) return
+    downTime.current = performance.now()
+    downPos.current = { x: e.clientX, y: e.clientY }
+  }
+
+  function onPointerUp(e) {
+    if (e.button !== 0 || downTime.current === null) return
+    const dt = performance.now() - downTime.current
+    const dx = e.clientX - downPos.current.x
+    const dy = e.clientY - downPos.current.y
+    downTime.current = null
+    downPos.current = null
+    if (dt > CLICK_MAX_MS || dx * dx + dy * dy > CLICK_MAX_PX2) return
+    if (!lastResolved.current) return
     e.stopPropagation()
-    const pt = resolve(e.point.x, e.point.z)
+    const pt = lastResolved.current
     if (phase.current === 0) {
       phase.p1 = pt
       phase.current = 1
@@ -235,29 +279,46 @@ export function MeasurePainter() {
     }
   }
 
+  const previewLinePositions = firstPoint && previewPoint
+    ? new Float32Array([firstPoint[0], 0.08, firstPoint[1], previewPoint[0], 0.08, previewPoint[1]])
+    : null
+
   return (
     <>
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
         position={[0, 0.01, 0]}
-        onClick={onClick}
+        onPointerDown={onPointerDown}
+        onPointerUp={onPointerUp}
         onPointerMove={onPointerMove}
-        onPointerLeave={() => setSnapIndicator(null)}
+        onPointerLeave={() => { setPreviewPoint(null); setIsSnapped(false) }}
       >
         <planeGeometry args={[200, 200]} />
         <meshBasicMaterial visible={false} side={THREE.DoubleSide} />
       </mesh>
-      {snapIndicator && (
-        <mesh position={[snapIndicator[0], 0.14, snapIndicator[1]]}>
-          <sphereGeometry args={[0.1, 12, 12]} />
-          <meshBasicMaterial color="#e53935" />
-        </mesh>
+
+      {/* Live cursor preview — blue when snapped to face, red otherwise */}
+      {previewPoint && (
+        <ScaledSphere
+          position={[previewPoint[0], 0.08, previewPoint[1]]}
+          color={isSnapped ? '#2563eb' : '#e53935'}
+          opacity={0.55}
+        />
       )}
+
+      {/* Placed first point */}
       {firstPoint && (
-        <mesh position={[firstPoint[0], 0.14, firstPoint[1]]}>
-          <sphereGeometry args={[0.12, 12, 12]} />
-          <meshBasicMaterial color="#e53935" />
-        </mesh>
+        <ScaledSphere position={[firstPoint[0], 0.08, firstPoint[1]]} color="#e53935" />
+      )}
+
+      {/* Dashed preview line from first point to cursor */}
+      {previewLinePositions && (
+        <line>
+          <bufferGeometry>
+            <bufferAttribute attach="attributes-position" args={[previewLinePositions, 3]} />
+          </bufferGeometry>
+          <lineBasicMaterial color="#e53935" transparent opacity={0.45} />
+        </line>
       )}
     </>
   )
