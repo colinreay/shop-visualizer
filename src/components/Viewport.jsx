@@ -1,9 +1,9 @@
 import { Canvas, useThree } from '@react-three/fiber'
 import {
-  OrbitControls, Grid, Environment, GizmoHelper,
+  OrbitControls, Environment, GizmoHelper,
   GizmoViewport, Html, TransformControls,
 } from '@react-three/drei'
-import { Suspense, useEffect, useRef } from 'react'
+import { Suspense, useEffect, useRef, useMemo } from 'react'
 import * as THREE from 'three'
 import { useStore } from '../store'
 import { itemRefs } from '../itemRefs'
@@ -34,11 +34,17 @@ function CameraResetter() {
 }
 
 function Floor() {
+  const fineGrid = useMemo(() => new THREE.GridHelper(200, 200, '#b0bac6', '#b0bac6'), [])
+  const coarseGrid = useMemo(() => new THREE.GridHelper(200, 40, '#7a8795', '#7a8795'), [])
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]} receiveShadow>
-      <planeGeometry args={[200, 200]} />
-      <meshStandardMaterial color="#b8bec8" roughness={0.95} polygonOffset polygonOffsetFactor={4} polygonOffsetUnits={4} />
-    </mesh>
+    <>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.001, 0]} receiveShadow>
+        <planeGeometry args={[200, 200]} />
+        <meshStandardMaterial color="#c4cad4" roughness={0.95} />
+      </mesh>
+      <primitive object={fineGrid} position={[0, 0, 0]} />
+      <primitive object={coarseGrid} position={[0, 0.001, 0]} />
+    </>
   )
 }
 
@@ -134,20 +140,6 @@ function SceneContents() {
       </Suspense>
 
       <Floor />
-
-      <Grid
-        args={[200, 200]}
-        cellSize={1}
-        cellThickness={0.6}
-        cellColor="#9aa5b4"
-        sectionSize={5}
-        sectionThickness={1.2}
-        sectionColor="#6b7280"
-        fadeDistance={200}
-        fadeStrength={1.5}
-        followCamera={false}
-        infiniteGrid
-      />
 
       <ShopWalls />
       <MeasureDisplay />
