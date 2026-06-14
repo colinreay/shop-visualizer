@@ -1,6 +1,7 @@
-// Reusable [x, z] coordinate list editor used by the wall/perimeter editors
+// Reusable [x, y] coordinate list editor used by the wall/perimeter editors
+// (App convention: XY = ground plane, Z = up)
 
-export default function PointsEditor({ points, onChange }) {
+export default function PointsEditor({ points, onChange, unit = 'm', step = '0.5' }) {
   function update(i, axis, raw) {
     const val = raw === '' ? 0 : parseFloat(raw)
     const next = points.map((p, j) =>
@@ -21,22 +22,22 @@ export default function PointsEditor({ points, onChange }) {
   return (
     <div style={s.wrap}>
       <div style={s.header}>
-        <span style={s.hCell}>X (m)</span>
-        <span style={s.hCell}>Z (m)</span>
+        <span style={s.hCell}>X ({unit})</span>
+        <span style={s.hCell}>Y ({unit})</span>
         <span style={{ width: 24 }} />
       </div>
       {points.map((pt, i) => (
         <div key={i} style={s.row}>
           <input
             type="number"
-            step="0.5"
+            step={step}
             style={s.inp}
             value={pt[0]}
             onChange={(e) => update(i, 0, e.target.value)}
           />
           <input
             type="number"
-            step="0.5"
+            step={step}
             style={s.inp}
             value={pt[1]}
             onChange={(e) => update(i, 1, e.target.value)}

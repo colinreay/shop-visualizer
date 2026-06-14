@@ -177,7 +177,7 @@ export default function Sidebar() {
                   />
                 </label>
                 <label style={{ flex: 1 }}>
-                  <div style={s.dimLabel}>Z ({u})</div>
+                  <div style={s.dimLabel}>Y ({u})</div>
                   <input
                     type="number"
                     step={POS_STEP[units]}
@@ -270,7 +270,7 @@ export default function Sidebar() {
             Define the outer walls of your shop. Points close automatically to form a polygon.
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, marginTop: 6 }}>
-            <span style={{ fontSize: 11, color: '#6b7280', flexShrink: 0 }}>Wall height ({u})</span>
+            <span style={{ fontSize: 11, color: '#6b7280', flexShrink: 0 }}>Z height ({u})</span>
             <input
               type="number"
               step={DIM_STEP[units]}
@@ -286,6 +286,8 @@ export default function Sidebar() {
           <PointsEditor
             points={dispPts(perimeter)}
             onChange={(pts) => setPerimeter(mPts(pts))}
+            unit={u}
+            step={POS_STEP[units]}
           />
           {perimeter.length < 3 && (
             <div style={s.hintWarn}>Need at least 3 points to draw walls & floor.</div>
@@ -307,7 +309,7 @@ export default function Sidebar() {
                 <span style={s.wallCardTitle}>Wall {i + 1}</span>
                 <button style={s.iconBtn} onClick={() => removeWall(i)}>✕</button>
               </div>
-              <PointsEditor points={dispPts(pts)} onChange={(next) => setWall(i, mPts(next))} />
+              <PointsEditor points={dispPts(pts)} onChange={(next) => setWall(i, mPts(next))} unit={u} step={POS_STEP[units]} />
             </div>
           ))}
         </Section>
@@ -327,7 +329,7 @@ export default function Sidebar() {
                 <span style={s.wallCardTitle}>Curtain {i + 1}</span>
                 <button style={s.iconBtn} onClick={() => removeCurtain(i)}>✕</button>
               </div>
-              <PointsEditor points={dispPts(pts)} onChange={(next) => setCurtain(i, mPts(next))} />
+              <PointsEditor points={dispPts(pts)} onChange={(next) => setCurtain(i, mPts(next))} unit={u} step={POS_STEP[units]} />
             </div>
           ))}
         </Section>
