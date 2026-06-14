@@ -3,7 +3,7 @@ import {
   OrbitControls, Environment, GizmoHelper,
   GizmoViewport, Html, TransformControls,
 } from '@react-three/drei'
-import { Suspense, useEffect, useRef, useMemo } from 'react'
+import { Suspense, useEffect, useLayoutEffect, useRef, useMemo } from 'react'
 import * as THREE from 'three'
 import { useStore } from '../store'
 import { itemRefs } from '../itemRefs'
@@ -100,6 +100,19 @@ function RotateGizmo() {
   )
 }
 
+// Forces R3F's internal size state to stay in sync with the canvas element after
+// flex-driven resizes (sidebar drag). R3F's ResizeObserver fires async; this runs
+// synchronously via useLayoutEffect so the GizmoHelper is never one frame behind.
+function ViewportSizer() {
+  const sidebarWidth = useStore((s) => s.sidebarWidth)
+  const { gl, setSize } = useThree()
+  useLayoutEffect(() => {
+    const { width, height } = gl.domElement.getBoundingClientRect()
+    if (width > 0 && height > 0) setSize(width, height)
+  }, [sidebarWidth, gl, setSize])
+  return null
+}
+
 // Re-enables OrbitControls if a pointercancel (e.g. file dialog opening) escapes ShopItem
 function ControlsSafetyNet() {
   const { controls } = useThree()
@@ -159,6 +172,7 @@ function SceneContents() {
 
       <CameraResetter />
       <ControlsSafetyNet />
+      <ViewportSizer />
 
       <OrbitControls
         makeDefault

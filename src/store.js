@@ -51,6 +51,10 @@ export const useStore = create((set, get) => ({
   wallHeight: 3.5,
   setWallHeight: (h) => set({ wallHeight: h }),
 
+  // Sidebar width — mirrored into store so the Canvas can react to layout changes
+  sidebarWidth: 260,
+  setSidebarWidth: (w) => set({ sidebarWidth: w }),
+
   // Camera reset — increment to trigger a reset inside the Canvas
   cameraResetTick: 0,
   triggerCameraReset: () => set((s) => ({ cameraResetTick: s.cameraResetTick + 1, selectedId: null })),

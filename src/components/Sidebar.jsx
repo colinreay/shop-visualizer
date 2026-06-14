@@ -36,13 +36,13 @@ export default function Sidebar() {
     editMode, setEditMode,
     units, setUnits,
     wallHeight, setWallHeight,
+    sidebarWidth, setSidebarWidth,
     faceSelectId, setFaceSelectId,
   } = useStore()
 
   const selected = items.find((i) => i.id === selectedId)
 
-  // Resizable sidebar
-  const [sidebarWidth, setSidebarWidth] = useState(260)
+  // Resizable sidebar — width lives in the store so Viewport can react to it
   const resizing = useRef(false)
   const resizeStart = useRef({ x: 0, w: 260 })
   useEffect(() => {
@@ -55,7 +55,7 @@ export default function Sidebar() {
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
     return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
-  }, [])
+  }, [setSidebarWidth])
 
   const factor  = UNIT_FACTORS[units] ?? 1
   const dec     = UNIT_DECIMALS[units] ?? 3
