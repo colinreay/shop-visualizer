@@ -107,7 +107,14 @@ function ViewportSizer() {
   const sidebarWidth = useStore((s) => s.sidebarWidth)
   const { gl, setSize } = useThree()
   useLayoutEffect(() => {
-    const { width, height } = gl.domElement.getBoundingClientRect()
+    // Measure the R3F wrapper div (parentElement), NOT the canvas itself.
+    // Three.js sets an explicit px width on the canvas via gl.setSize(), so
+    // canvas.getBoundingClientRect() returns the stale old size after a
+    // sidebar-driven flex layout change. The parent div has width:100% and
+    // correctly reflects the new container dimensions.
+    const container = gl.domElement.parentElement
+    if (!container) return
+    const { width, height } = container.getBoundingClientRect()
     if (width > 0 && height > 0) setSize(width, height)
   }, [sidebarWidth, gl, setSize])
   return null
