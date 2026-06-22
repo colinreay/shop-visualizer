@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useStore } from '../store'
 import { STLDropZone } from './STLImport'
 import PointsEditor from './PointsEditor'
+import { downloadScene, loadSceneFromFile } from '../sceneIO'
 
 // Collapsible section wrapper
 function Section({ title, defaultOpen = true, children, action }) {
@@ -38,6 +39,7 @@ export default function Sidebar() {
     wallHeight, setWallHeight,
     sidebarWidth, setSidebarWidth,
     faceSelectId, setFaceSelectId,
+    loadSceneData,
   } = useStore()
 
   const selected = items.find((i) => i.id === selectedId)
@@ -71,6 +73,27 @@ export default function Sidebar() {
     const pos = [...selected.position]
     pos[axis === 'x' ? 0 : 2] = val
     updateItem(selected.id, { position: pos })
+  }
+
+  function handleSave() {
+    downloadScene(useStore.getState())
+  }
+
+  function handleLoad() {
+    const inp = document.createElement('input')
+    inp.type = 'file'
+    inp.accept = '.shopvis,.json'
+    inp.onchange = async (e) => {
+      const file = e.target.files[0]
+      if (!file) return
+      try {
+        const data = await loadSceneFromFile(file)
+        loadSceneData(data)
+      } catch {
+        alert('Failed to load scene file.')
+      }
+    }
+    inp.click()
   }
 
   function handleDimChange(dim, raw) {
@@ -108,6 +131,12 @@ export default function Sidebar() {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Save / Load */}
+      <div style={s.fileBar}>
+        <button style={s.fileBtn} onClick={handleSave}>⬇ Save</button>
+        <button style={s.fileBtn} onClick={handleLoad}>⬆ Load</button>
       </div>
 
       <div style={s.scroll}>
@@ -455,6 +484,25 @@ const s = {
   },
   appName: { fontSize: 14, fontWeight: 700, color: '#1a1a2e' },
   appSub: { fontSize: 11, color: '#888', marginTop: 1 },
+  fileBar: {
+    display: 'flex',
+    gap: 6,
+    padding: '7px 12px',
+    borderBottom: '1px solid #e2e8f0',
+    background: '#fff',
+    flexShrink: 0,
+  },
+  fileBtn: {
+    flex: 1,
+    padding: '5px',
+    background: '#f8f9fb',
+    border: '1px solid #e2e8f0',
+    borderRadius: 5,
+    color: '#374151',
+    fontSize: 12,
+    fontWeight: 500,
+    cursor: 'pointer',
+  },
   scroll: {
     flex: 1,
     overflowY: 'auto',

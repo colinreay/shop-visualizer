@@ -12,7 +12,10 @@ function ScaledSphere({ position, color, opacity = 1 }) {
   const { camera } = useThree()
   useFrame(() => {
     if (!meshRef.current) return
-    const d = camera.position.distanceTo(_tmp.set(position[0], position[1], position[2]))
+    // Use the mesh's world position — it lives under the Z-up root group, so its
+    // authored coords differ from world. getWorldPosition is transform-agnostic.
+    meshRef.current.getWorldPosition(_tmp)
+    const d = camera.position.distanceTo(_tmp)
     meshRef.current.scale.setScalar(Math.max(0.02, d * 0.005))
   })
   return (
@@ -239,7 +242,9 @@ export function MeasurePainter() {
 
   function onPointerMove(e) {
     e.stopPropagation()
-    const { x, z } = e.point
+    // e.point is world-space; map to authored floor coords (Z-up world: authored_z = -world.y)
+    const x = e.point.x
+    const z = -e.point.y
     const { pt, snapped } = resolve(x, z)
     lastResolved.current = pt
     setPreviewPoint(pt)

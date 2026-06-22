@@ -94,4 +94,16 @@ export const useStore = create((set, get) => ({
     set((s) => ({
       items: s.items.map((i) => (i.id === id ? { ...i, ...patch } : i)),
     })),
+
+  loadSceneData: (data) => set({
+    items: data.items,
+    perimeter: data.perimeter,
+    walls: data.walls,
+    curtains: data.curtains,
+    measurements: data.measurements,
+    units: data.units,
+    wallHeight: data.wallHeight,
+    snapEnabled: data.snapEnabled,
+    selectedId: null,
+  }),
 }))

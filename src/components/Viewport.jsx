@@ -12,7 +12,10 @@ import ShopWalls, { MeasureDisplay, MeasurePainter } from './ShopWalls'
 // WallPainter removed — walls are now defined via coordinate editor in the sidebar
 import { STLMesh } from './STLImport'
 
-const HOME_POS = [12, 10, 12]
+// Z-up world: ground is the world XY plane, +Z is vertical. Iso view from the
+// +X / -Y / +Z octant looking at the origin.
+const HOME_POS = [14, -14, 12]
+const UP = [0, 0, 1]
 
 // Watches cameraResetTick and snaps camera back to the default isometric position
 function CameraResetter() {
@@ -23,6 +26,7 @@ function CameraResetter() {
   useEffect(() => {
     if (cameraResetTick === prevTick.current) return
     prevTick.current = cameraResetTick
+    camera.up.set(...UP)
     camera.position.set(...HOME_POS)
     if (controls) {
       controls.target.set(0, 0, 0)
@@ -86,6 +90,7 @@ function RotateGizmo() {
       key={selected.id}
       object={ref.current}
       mode="rotate"
+      space="local"
       showX={false}
       showZ={false}
       rotationSnap={Math.PI / 12}
@@ -100,9 +105,12 @@ function RotateGizmo() {
   )
 }
 
-// Forces R3F's internal size state to stay in sync with the canvas element after
-// flex-driven resizes (sidebar drag). R3F's ResizeObserver fires async; this runs
-// synchronously via useLayoutEffect so the GizmoHelper is never one frame behind.
+// Keeps R3F's internal size in sync with the canvas after flex-driven resizes
+// (sidebar drag). The actual offscreen-gizmo bug was the Viewport flex item lacking
+// `min-width: 0` — with `min-width: auto` it wouldn't shrink below the canvas's
+// explicit pixel width, so the container never resized. That's fixed on the Viewport
+// div below. This sizer is the belt-and-suspenders half: R3F's ResizeObserver fires
+// async, so this runs synchronously via useLayoutEffect to kill per-frame lag mid-drag.
 function ViewportSizer() {
   const sidebarWidth = useStore((s) => s.sidebarWidth)
   const { gl, setSize } = useThree()
@@ -140,40 +148,48 @@ function SceneContents() {
 
   return (
     <>
-      <ambientLight intensity={0.7} />
-      <directionalLight
-        position={[15, 25, 10]}
-        intensity={1.4}
-        castShadow
-        shadow-mapSize-width={2048}
-        shadow-mapSize-height={2048}
-        shadow-camera-far={100}
-        shadow-camera-left={-30}
-        shadow-camera-right={30}
-        shadow-camera-top={30}
-        shadow-camera-bottom={-30}
-      />
-      <hemisphereLight skyColor="#ddeeff" groundColor="#aabbcc" intensity={0.4} />
-
       <Suspense fallback={null}>
         <Environment preset="city" />
       </Suspense>
 
-      <Floor />
+      {/* All scene geometry is authored Y-up, then rotated +90° about X so that
+          authored vertical (Y) becomes world +Z. This makes the world genuinely
+          Z-up (ground = world XY plane) without rewriting every position/rotation.
+          Lights live inside the group so their direction rotates with the scene.
+          Pointer interactions (item drag, measure) raycast in WORLD space and map
+          back to authored floor coords: authored_x = world.x, authored_z = -world.y. */}
+      <group rotation={[Math.PI / 2, 0, 0]}>
+        <ambientLight intensity={0.7} />
+        <directionalLight
+          position={[15, 25, 10]}
+          intensity={1.4}
+          castShadow
+          shadow-mapSize-width={2048}
+          shadow-mapSize-height={2048}
+          shadow-camera-far={100}
+          shadow-camera-left={-30}
+          shadow-camera-right={30}
+          shadow-camera-top={30}
+          shadow-camera-bottom={-30}
+        />
+        <hemisphereLight skyColor="#ddeeff" groundColor="#aabbcc" intensity={0.4} />
 
-      <ShopWalls />
-      <MeasureDisplay />
-      <MeasurePainter />
+        <Floor />
 
-      {items.map((item) =>
-        item.type === 'stl' ? (
-          <ShopItem key={item.id} item={item}><STLMesh item={item} /></ShopItem>
-        ) : (
-          <ShopItem key={item.id} item={item} />
-        )
-      )}
+        <ShopWalls />
+        <MeasureDisplay />
+        <MeasurePainter />
 
-      <ItemLabels items={items} selectedId={selectedId} />
+        {items.map((item) =>
+          item.type === 'stl' ? (
+            <ShopItem key={item.id} item={item}><STLMesh item={item} /></ShopItem>
+          ) : (
+            <ShopItem key={item.id} item={item} />
+          )
+        )}
+
+        <ItemLabels items={items} selectedId={selectedId} />
+      </group>
 
       {transformMode === 'rotate' && <RotateGizmo />}
 
@@ -272,12 +288,12 @@ export default function Viewport() {
   const { selectItem } = useStore()
 
   return (
-    <div style={{ flex: 1, position: 'relative', background: '#e8edf3' }}>
+    <div style={{ flex: 1, minWidth: 0, minHeight: 0, position: 'relative', background: '#e8edf3' }}>
       <Toolbar />
       <Canvas
         shadows
         dpr={[1, 2]}
-        camera={{ position: [12, 10, 12], fov: 50, near: 0.1, far: 500 }}
+        camera={{ position: HOME_POS, up: UP, fov: 50, near: 0.1, far: 500 }}
         style={{ width: '100%', height: '100%' }}
         onPointerMissed={() => selectItem(null)}
       >

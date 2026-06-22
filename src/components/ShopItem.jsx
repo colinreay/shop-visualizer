@@ -5,7 +5,9 @@ import * as THREE from 'three'
 import { useStore } from '../store'
 import { itemRefs } from '../itemRefs'
 
-const _plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
+// World ground plane is XY (normal +Z) in the Z-up scene. Raycast hits are in
+// world space; map to authored floor coords with authored_x = x, authored_z = -y.
+const _plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0)
 const _ray = new THREE.Raycaster()
 const _hit = new THREE.Vector3()
 const _ndc = new THREE.Vector2()
@@ -62,11 +64,15 @@ export default function ShopItem({ item, children }) {
 
   // Sync store position/rotation → three.js object imperatively.
   // Skipped while a transform is in progress (drag or rotate gizmo) to avoid fighting.
+  // Box geometry is centered at its origin, so lift it by half-height to floor it.
+  // STL geometry is already floored at local y=0 on import, so it sits at y=0.
+  const groundY = item.type === 'stl' ? 0 : item.h / 2
+
   useLayoutEffect(() => {
     if (!groupRef.current || isTransforming) return
-    groupRef.current.position.set(item.position[0], item.h / 2, item.position[2])
+    groupRef.current.position.set(item.position[0], groundY, item.position[2])
     groupRef.current.rotation.set(0, (item.rotation * Math.PI) / 180, 0)
-  }, [item.position[0], item.position[2], item.rotation, item.h, isTransforming])
+  }, [item.position[0], item.position[2], item.rotation, groundY, isTransforming])
 
   function getGroundPoint(clientX, clientY) {
     const rect = gl.domElement.getBoundingClientRect()
@@ -95,7 +101,7 @@ export default function ShopItem({ item, children }) {
     if (controlsRef.current) controlsRef.current.enabled = false
     gl.domElement.setPointerCapture(e.pointerId)
     const pt = getGroundPoint(e.clientX, e.clientY)
-    dragOffset.current.set(pt.x - item.position[0], 0, pt.z - item.position[2])
+    dragOffset.current.set(pt.x - item.position[0], 0, (-pt.y) - item.position[2])
   }
 
   function onPointerMove(e) {
@@ -111,8 +117,8 @@ export default function ShopItem({ item, children }) {
     }
     const pt = getGroundPoint(e.clientX, e.clientY)
     const x = snap(pt.x - dragOffset.current.x)
-    const z = snap(pt.z - dragOffset.current.z)
-    if (groupRef.current) groupRef.current.position.set(x, item.h / 2, z)
+    const z = snap((-pt.y) - dragOffset.current.z)
+    if (groupRef.current) groupRef.current.position.set(x, groundY, z)
     updateItem(item.id, { position: [x, 0, z] })
   }
 
